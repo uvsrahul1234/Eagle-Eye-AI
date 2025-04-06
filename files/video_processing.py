@@ -1,58 +1,70 @@
 import os
 import cv2
 
-from ultralytics import YOLO
-YOLO("yolov8n.pt")  # Downloads weights if not already available
+class FrameExtractor:
+    def __init__(self, video_folder, output_root, default_interval_sec=1, custom_intervals=None):
+        self.video_folder = video_folder
+        self.output_root = output_root
+        self.default_interval_sec = default_interval_sec
+        self.custom_intervals = custom_intervals or {}
 
-# === CONFIG ===
-VIDEO_FOLDER = "database"
-FRAME_INTERVAL_SEC = 1  # Sample every 1 second
-MODEL_PATH = "yolov8n.pt"
+        os.makedirs(self.output_root, exist_ok=True)
+        print(f"[INIT] FrameExtractor initialized. Saving frames to '{self.output_root}'")
 
-# === Setup ===
+    def get_interval_for_video(self, video_name):
+        return self.custom_intervals.get(video_name, self.default_interval_sec)
 
-model = YOLO(MODEL_PATH)
+    def extract_frames_from_all_videos(self):
+        for file in os.listdir(self.video_folder):
+            if file.lower().endswith((".mp4", ".avi", ".mov")):
+                video_path = os.path.join(self.video_folder, file)
+                self.extract_frames_from_video(video_path)
 
-def process_video(video_path):
-    video = cv2.VideoCapture(video_path)
-    OUTPUT_DIR = "database/extrac_frames/{video_path}"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    def extract_frames_from_video(self, video_path):
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        interval_sec = self.get_interval_for_video(video_name)
+        output_dir = os.path.join(self.output_root, video_name)
+        os.makedirs(output_dir, exist_ok=True)
 
-    fps = video.get(cv2.CAP_PROP_FPS)
-    frame_interval = int(fps * FRAME_INTERVAL_SEC)
-    frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-    frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        interval_frames = int(fps * interval_sec)
 
-    print(f"[INFO] Video loaded: {video_path}")
-    print(f"[INFO] FPS: {fps}, Total frames: {frame_count}")
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        print(f"[INFO] Processing '{video_name}' | Interval: {interval_sec}s | Total frames: {total_frames}")
 
-    frame_idx = 0
-    saved_count = 0
+        frame_idx = 0
+        saved_count = 0
 
-    while video.isOpened():
-        success, frame = video.read()
-        if not success:
-            break
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        if frame_idx % frame_interval == 0:
-            print(f"[INFO] Processing frame {frame_idx}")
-            results = model.predict(source=frame, conf=0.4, classes=[0], verbose=False)  # class 0 = person
+            if frame_idx % interval_frames == 0:
+                frame_filename = f"frame{frame_idx}.jpg"
+                frame_path = os.path.join(output_dir, frame_filename)
+                cv2.imwrite(frame_path, frame)
+                saved_count += 1
+                print(f"  - Saved: {frame_filename}")
 
-            for i, result in enumerate(results):
-                boxes = result.boxes.xyxy.cpu().numpy()
-                for j, box in enumerate(boxes):
-                    save_path = os.path.join(OUTPUT_DIR, f"frame{frame_idx}_person{j}.jpg")
-                    cv2.imwrite(save_path, frame)
-                    saved_count += 1
+            frame_idx += 1
 
-        frame_idx += 1
+        cap.release()
+        print(f"[DONE] Extracted {saved_count} frames from '{video_name}' into '{output_dir}'")
 
-    video.release()
-    print(f"[DONE] Saved {saved_count} cropped person images to {OUTPUT_DIR}")
 
-# Process all videos in the folder
-for video_file in os.listdir(VIDEO_FOLDER):
-    if video_file.lower().endswith((".mp4", ".avi", ".mov")):
-        video_path = os.path.join(VIDEO_FOLDER, video_file)
-        process_video(video_path)
+if __name__ == "__main__":
+    custom_intervals = {
+        "robbery_cam1": 1,   # Every 1 second
+        "suspicious_car": 0.5,  # Every 0.5 seconds
+    }
+
+    extractor = FrameExtractor(
+        video_folder="database",
+        output_root="database/extrac_frames",
+        default_interval_sec=1,
+        custom_intervals=custom_intervals
+    )
+
+    extractor.extract_frames_from_all_videos()
