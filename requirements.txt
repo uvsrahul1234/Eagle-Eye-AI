@@ -1,0 +1,5 @@
+opencv-python
+yolov8
+langchain-openai
+langchain-core
+torch
