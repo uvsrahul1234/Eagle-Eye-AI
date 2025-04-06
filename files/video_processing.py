@@ -42,8 +42,12 @@ class FrameExtractor:
                 break
 
             if frame_idx % interval_frames == 0:
-                frame_filename = f"frame{frame_idx}.jpg"
+                timestamp_sec = frame_idx / fps
+
+                frame_filename = f"frame{frame_idx}_t{int(timestamp_sec)}s.jpg"
+
                 frame_path = os.path.join(output_dir, frame_filename)
+
                 cv2.imwrite(frame_path, frame)
                 saved_count += 1
                 print(f"  - Saved: {frame_filename}")
@@ -56,7 +60,7 @@ class FrameExtractor:
 
 if __name__ == "__main__":
     custom_intervals = {
-        "robbery_cam1": 1,   # Every 1 second
+        "database/normal video": 3,   # Every 1 second
         "suspicious_car": 0.5,  # Every 0.5 seconds
     }
 
