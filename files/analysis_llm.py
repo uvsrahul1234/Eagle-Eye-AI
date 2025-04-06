@@ -31,6 +31,7 @@ def image_summarize(img_base64, prompt):
     return msg.content
 
 def text_summarize(text):
+    print("[AI] Generating text summary (overall scene)...")
     """Generate a text summary using ChatOpenAI with text input."""
     chat = ChatOpenAI(model="gpt-4o-mini", max_tokens=1024)
     msg = chat.invoke([HumanMessage(content=text)])
@@ -46,6 +47,7 @@ def check_crime(summary):
     return any(keyword in summary_lower for keyword in crime_keywords)
 
 def generate_img_summaries(folder_path):
+    print(f"[PROCESS] Generating summaries for images in: {folder_path}")
     """
     Process images in a folder: encode, generate summaries, and check for crime-related content.
     
@@ -86,33 +88,45 @@ def generate_img_summaries(folder_path):
         "\n".join(image_summaries)
     )
     overall_summary = text_summarize(overall_prompt)
+    print(f"[OVERALL SUMMARY]\n{overall_summary}")
     if check_crime(overall_summary):
         alerts.append(f"Alert in overall summary: {overall_summary}")
 
-    return img_base64_list, image_summaries, alerts
+    return img_base64_list, image_summaries, alerts, overall_summary
 
-# Example usage:
-folder_path = "database/extrac_frames"  # Adjust to your actual image folder path.
-img_base64_list, image_summaries, alerts = generate_img_summaries(folder_path)
+def get_top_video_folders(base_path, top_n=5):
+    """Returns top N subfolders only (ignore direct images or non-folders)."""
+    return sorted([
+        f for f in os.listdir(base_path)
+        if os.path.isdir(os.path.join(base_path, f))
+    ])[:top_n]
 
-def save_to_csv(video_title, overall_summary, alerts, csv_file="summary_alerts.csv"):
+
+def save_to_csv(video_title, image_summaries, overall_summary, alerts, csv_file="summary_alerts.csv"):
+    print(f"[SAVE COMPLETE] Entry saved for: {video_title}")
     """Save the summary and alerts to a CSV file."""
+    joined_summaries = "\n---\n".join(image_summaries)
+    joined_alerts = " | ".join(alerts)
+
     with open(csv_file, mode='a', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow([video_title, overall_summary, "; ".join(alerts)])
+        writer.writerow([video_title, joined_summaries, overall_summary,joined_alerts])
 
-# Example usage:
-folder_path = "database/extrac_frames"  # Adjust to your actual image folder path.
-video_title = os.path.basename(folder_path)
-overall_summary, alerts = generate_img_summaries(folder_path)
+# === MAIN ===
+base_folder = "database/extrac_frames"
 
-# Save the summary and alerts to a CSV file.
-save_to_csv(video_title, overall_summary, alerts)
+top_folders = get_top_video_folders(base_folder, top_n=5)
 
-# Print the overall summary and any alerts.
-print(f"Overall Summary for {video_title}:\n{overall_summary}\n")
-if alerts:
-    for alert in alerts:
-        print(alert)
-else:
-    print("No crime-related scenes detected.")
+for folder_name in top_folders:
+    folder_path = os.path.join(base_folder, folder_name)
+    print(f"\n[PROCESSING] Folder: {folder_name}")
+
+    img_base64_list, image_summaries, alerts,overall_summary = generate_img_summaries(folder_path)
+    save_to_csv(folder_name,image_summaries, overall_summary,alerts)
+
+    if alerts:
+        for alert in alerts:
+            print(alert)
+    else:
+        print("No crime-related scenes detected.")
+    
