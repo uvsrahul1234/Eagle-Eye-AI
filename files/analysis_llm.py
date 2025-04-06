@@ -4,6 +4,8 @@ import csv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
+import time
+
 
 load_dotenv()
 
@@ -47,7 +49,8 @@ def check_crime(summary):
     return any(keyword in summary_lower for keyword in crime_keywords)
 
 def generate_img_summaries(folder_path):
-    print(f"[PROCESS] Generating summaries for images in: {folder_path}")
+    time.sleep(120)
+    print(f"[PROCESS] Analyzing images in: {folder_path}")
     """
     Process images in a folder: encode, generate summaries, and check for crime-related content.
     
@@ -63,10 +66,10 @@ def generate_img_summaries(folder_path):
 
     # Prompt for summarizing individual images from crime video frames.
     prompt = (
-        "You are an assistant tasked with analyzing images extracted from crime videos. "
-        "For each image, provide a concise summary of the scene, including details about the people present, "
-        "their actions, clothing colors, hairstyles, and any notable interactions or behaviors. "
-        "Focus on detecting any indicators of criminal activity or suspicious behavior."
+        "You are an assistant analyzing images from crime videos. "
+        "For each image, give a short summary in no more than **50 words**. "
+        "Include visible people, actions, clothing, and suspicious behavior. "
+        "Be concise, clear, and only report what is visible."
     )
     
     # Process each image in the folder.
@@ -81,12 +84,18 @@ def generate_img_summaries(folder_path):
             if check_crime(summary):
                 alerts.append(f"Alert for {img_file}: {summary}")
 
+        print("[WAIT] Sleeping 2s between image summaries...\n")
+        time.sleep(2)
+
     # Generate an overall summary from all image summaries.
     overall_prompt = (
-        "Based on the following image summaries, provide an overall summary of the situation. "
-        "Describe the context and note any indications of criminal activity or suspicious behavior:\n" +
-        "\n".join(image_summaries)
-    )
+    "Based on the following image summaries, write a short overall summary "
+    "of the scene in **no more than 100 words**. Focus on the context, people, and "
+    "any visible suspicious or criminal activity:\n" +
+    "\n".join(image_summaries))
+
+    time.sleep(5)
+
     overall_summary = text_summarize(overall_prompt)
     print(f"[OVERALL SUMMARY]\n{overall_summary}")
     if check_crime(overall_summary):
@@ -114,15 +123,16 @@ def save_to_csv(video_title, image_summaries, overall_summary, alerts, csv_file=
 
 # === MAIN ===
 base_folder = "database/extrac_frames"
-
 top_folders = get_top_video_folders(base_folder, top_n=5)
 
 for folder_name in top_folders:
     folder_path = os.path.join(base_folder, folder_name)
     print(f"\n[PROCESSING] Folder: {folder_name}")
-
     img_base64_list, image_summaries, alerts,overall_summary = generate_img_summaries(folder_path)
     save_to_csv(folder_name,image_summaries, overall_summary,alerts)
+
+    print("[WAIT] Sleeping for 10 seconds before processing the next folder...")
+    time.sleep(10)
 
     if alerts:
         for alert in alerts:
